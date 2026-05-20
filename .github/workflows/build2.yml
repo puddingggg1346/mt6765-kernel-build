@@ -8,6 +8,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Checkout your config repository
+      uses: actions/checkout@v4
+
     - name: Checkout kernel source
       run: |
         git clone --depth=1 https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git kernel
@@ -22,24 +25,22 @@ jobs:
         cd kernel
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-linux-gnu-
-        # 使用你手机的配置文件
-        gunzip -c ../config.gz > .config
+        # 从你的仓库根目录复制 config.gz 过来
+        cp ../config.gz .
+        gunzip config.gz
+        mv config .config
+        
         # 开启 IPC namespace
         scripts/config --file .config -e CONFIG_IPC_NS
         
         # --- 开启所有调试选项 ---
-        # 1. 内核调试支持
         scripts/config --file .config -e CONFIG_DEBUG_KERNEL
         scripts/config --file .config -e CONFIG_DEBUG_INFO
         scripts/config --file .config -e CONFIG_DEBUG_FS
-        
-        # 2. pstore 和 ramoops (崩溃日志)
         scripts/config --file .config -e CONFIG_PSTORE
         scripts/config --file .config -e CONFIG_PSTORE_CONSOLE
         scripts/config --file .config -e CONFIG_PSTORE_RAM
         scripts/config --file .config -e CONFIG_RAMOOPS
-        
-        # 3. 早期打印和详细日志
         scripts/config --file .config -e CONFIG_EARLY_PRINTK
         scripts/config --file .config -e CONFIG_DYNAMIC_DEBUG
         scripts/config --file .config --set-val CONFIG_LOG_BUF_SHIFT 18
