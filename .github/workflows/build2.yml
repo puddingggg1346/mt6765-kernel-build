@@ -1,0 +1,66 @@
+name: Build Debug Mainline MT6765 Kernel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout your config repository
+      uses: actions/checkout@v4
+
+    - name: Checkout mainline MT6765 kernel
+      run: |
+        git clone --depth=1 --branch mt6765-next https://github.com/adomerle/linux-mt6765.git kernel
+
+    - name: Setup build tools
+      run: |
+        sudo apt update
+        sudo apt install -y git make gcc-aarch64-linux-gnu
+
+    - name: Configure kernel
+      run: |
+        cd kernel
+        export ARCH=arm64
+        export CROSS_COMPILE=aarch64-linux-gnu-
+        
+        # 使用你手机的完整配置作为基础
+        gunzip -c ../config.gz > .config
+        
+        # 开启 IPC namespace
+        scripts/config --file .config -e CONFIG_IPC_NS
+        
+        # --- 开启所有调试选项 ---
+        # 1. 内核调试支持
+        scripts/config --file .config -e CONFIG_DEBUG_KERNEL
+        scripts/config --file .config -e CONFIG_DEBUG_INFO
+        scripts/config --file .config -e CONFIG_DEBUG_FS
+        
+        # 2. pstore 和 ramoops (崩溃日志)
+        scripts/config --file .config -e CONFIG_PSTORE
+        scripts/config --file .config -e CONFIG_PSTORE_CONSOLE
+        scripts/config --file .config -e CONFIG_PSTORE_RAM
+        scripts/config --file .config -e CONFIG_RAMOOPS
+        
+        # 3. 早期打印和详细日志
+        scripts/config --file .config -e CONFIG_EARLY_PRINTK
+        scripts/config --file .config -e CONFIG_DYNAMIC_DEBUG
+        scripts/config --file .config --set-val CONFIG_LOG_BUF_SHIFT 18
+        
+        # 重新解决依赖
+        make olddefconfig
+
+    - name: Build kernel
+      run: |
+        cd kernel
+        export ARCH=arm64
+        export CROSS_COMPILE=aarch64-linux-gnu-
+        make -j$(nproc) Image.gz
+
+    - name: Upload kernel image
+      uses: actions/upload-artifact@v4
+      with:
+        name: mainline-debug-kernel
+        path: kernel/arch/arm64/boot/Image.gz
